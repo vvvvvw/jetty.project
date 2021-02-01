@@ -34,6 +34,7 @@ import org.eclipse.jetty.util.BufferUtil;
  * if they are released, they may be recycled and reused, otherwise they will be garbage
  * collected as usual.</p>
  */
+// ByteBuffer 对象池
 public interface ByteBufferPool
 {
     /**
@@ -46,6 +47,8 @@ public interface ByteBufferPool
      * @return the requested buffer
      * @see #release(ByteBuffer)
      */
+    //分配内存
+    //direct：从 JVM 堆上分配还是从本地内存分配
     public ByteBuffer acquire(int size, boolean direct);
 
     /**
@@ -55,6 +58,7 @@ public interface ByteBufferPool
      * @param buffer the buffer to return
      * @see #acquire(int, boolean)
      */
+    //释放内存
     public void release(ByteBuffer buffer);
 
     /**
@@ -153,6 +157,7 @@ public interface ByteBufferPool
 
     public static class Bucket
     {
+        //用一个 ConcurrentLinkedDeque 来放置 ByteBuffer 对象的引用
         private final Deque<ByteBuffer> _queue = new ConcurrentLinkedDeque<>();
         private final int _capacity;
         private final int _maxSize;
@@ -166,8 +171,10 @@ public interface ByteBufferPool
             _size = maxSize > 0 ? new AtomicInteger() : null;
         }
 
+        //分配Buffer，找到相应的桶，并对桶中的 Deque 做出队和入队的操作
         public ByteBuffer acquire()
         {
+            //找到对应的桶 从 头部获取元素
             ByteBuffer buffer = queuePoll();
             if (buffer == null)
                 return null;
@@ -179,7 +186,9 @@ public interface ByteBufferPool
         public void release(ByteBuffer buffer)
         {
             _lastUpdate = System.nanoTime();
+            //清空 buffer的position和limit
             BufferUtil.clear(buffer);
+            //释放到链表头部
             if (_size == null)
                 queueOffer(buffer);
             else if (_size.incrementAndGet() <= _maxSize)

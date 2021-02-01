@@ -29,8 +29,8 @@ import org.eclipse.jetty.util.annotation.ManagedOperation;
 @ManagedObject
 abstract class AbstractByteBufferPool implements ByteBufferPool
 {
-    private final int _factor;
-    private final int _maxQueueLength;
+    private final int _factor; //后一个种类的 buffer的size/前一个种类的buffer的size
+    private final int _maxQueueLength; //Queue最大长度
     private final long _maxHeapMemory;
     private final AtomicLong _heapMemory = new AtomicLong();
     private final long _maxDirectMemory;

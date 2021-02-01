@@ -143,8 +143,8 @@ public abstract class AbstractConnector extends ContainerLifeCycle implements Co
 {
     protected static final Logger LOG = LoggerFactory.getLogger(AbstractConnector.class);
 
-    private final AutoLock _lock = new AutoLock();
-    private final Condition _setAccepting = _lock.newCondition();
+    private final AutoLock _lock = new AutoLock(); //用作限流的锁
+    private final Condition _setAccepting = _lock.newCondition(); //用作限流
     private final Map<String, ConnectionFactory> _factories = new LinkedHashMap<>(); // Order is important on server side, so we use a LinkedHashMap
     private final Server _server;
     private final Executor _executor;
@@ -353,6 +353,7 @@ public abstract class AbstractConnector extends ContainerLifeCycle implements Co
 
         for (int i = 0; i < _acceptors.length; i++)
         {
+            //根据_acceptors数组的长度创建对应数量的 Acceptor
             Acceptor a = new Acceptor(i);
             addBean(a);
             getExecutor().execute(a);
@@ -713,13 +714,13 @@ public abstract class AbstractConnector extends ContainerLifeCycle implements Co
 
             try
             {
-                while (isRunning() && !_shutdown.isShutdown())
+                while (isRunning() && !_shutdown.isShutdown()) //如果当前connector还没有被关闭
                 {
-                    try (AutoLock l = _lock.lock())
+                    try (AutoLock l = _lock.lock()) //阻塞等待锁
                     {
-                        if (!_accepting && isRunning())
+                        if (!_accepting && isRunning()) //如果当前connnector正在被限流
                         {
-                            _setAccepting.await();
+                            _setAccepting.await(); //等待在限流条件变量上(限流结束，会唤醒这个条件变量)
                             continue;
                         }
                     }
@@ -730,7 +731,7 @@ public abstract class AbstractConnector extends ContainerLifeCycle implements Co
 
                     try
                     {
-                        accept(_id);
+                        accept(_id); //接收请求
                     }
                     catch (Throwable x)
                     {

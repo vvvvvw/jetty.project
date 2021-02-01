@@ -39,7 +39,7 @@ import org.eclipse.jetty.util.component.LifeCycle;
 @ManagedObject("Handler wrapping another Handler")
 public class HandlerWrapper extends AbstractHandlerContainer
 {
-    protected Handler _handler;
+    protected Handler _handler; //下一个要调用的handler的引用
 
     /**
      *

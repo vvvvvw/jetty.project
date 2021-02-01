@@ -185,9 +185,9 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
     }
 
     protected ContextStatus _contextStatus = ContextStatus.NOTSET;
-    protected Context _scontext;
+    protected Context _scontext; //_scontext就是Servlet规范中的ServletContext
     private final AttributesMap _attributes;
-    private final Map<String, String> _initParams;
+    private final Map<String, String> _initParams; //Web应用的初始化参数
     private ClassLoader _classLoader;
     private boolean _contextPathDefault = true;
     private String _defaultRequestCharacterEncoding;
@@ -1215,6 +1215,7 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
         return true;
     }
 
+    //做了一些请求的修正、类加载器的设置，并通过nextScope调用了下游的handler
     @Override
     public void doScope(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException
     {
@@ -1237,6 +1238,7 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
             // check the target.
             if (DispatcherType.REQUEST.equals(dispatch) || DispatcherType.ASYNC.equals(dispatch))
             {
+                //1.修正请求的URL，去掉多余的'/'，或者加上'/'
                 if (isCompactPath())
                     target = URIUtil.compactPath(target);
                 if (!checkContext(target, baseRequest, response))
@@ -1261,6 +1263,7 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
             }
         }
 
+        //2.设置当前Web应用的类加载器
         if (_classLoader != null)
             currentThread.setContextClassLoader(_classLoader);
 
@@ -1278,6 +1281,7 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
             if (LOG.isDebugEnabled())
                 LOG.debug("context={}|{}|{} @ {}", baseRequest.getContextPath(), baseRequest.getServletPath(), baseRequest.getPathInfo(), this);
 
+            //3. 调用nextScope
             nextScope(target, baseRequest, request, response);
         }
         finally
@@ -1337,6 +1341,7 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
         }
     }
 
+    //通知相关监听器（ServletRequestListener.requestInitialized方法、ServletRequestListener.requestDestroyed方法）、添加ServletRequestAttributeListener监听器、处理请求
     @Override
     public void doHandle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException
     {
@@ -1344,6 +1349,7 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
         final boolean new_context = baseRequest.takeNewContext();
         try
         {
+            //请求的初始化工作,主要是为请求添加ServletRequestAttributeListener监听器,并将"开始处理一个新请求"这个事件通知ServletRequestListener
             if (new_context)
                 requestInitialized(baseRequest, request);
 
@@ -1354,10 +1360,12 @@ public class ContextHandler extends ScopedHandler implements Attributes, Gracefu
                 return;
             }
 
+            //继续调用下一个Handler，下一个Handler可能是ServletHandler、SessionHandler ...
             nextHandle(target, baseRequest, request, response);
         }
         finally
         {
+            //同样一个Servlet请求处理完毕，也要通知相应的监听器
             if (new_context)
                 requestDestroyed(baseRequest, request);
         }

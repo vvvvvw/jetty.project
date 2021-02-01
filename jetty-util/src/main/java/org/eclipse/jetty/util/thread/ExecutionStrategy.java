@@ -36,6 +36,7 @@ public interface ExecutionStrategy
      *
      * @see #produce()
      */
+    //目前只在HTTP2中用到
     public void dispatch();
 
     /**
@@ -45,6 +46,7 @@ public interface ExecutionStrategy
      *
      * @see #dispatch()
      */
+    //实现具体执行策略，任务生产出来后可以由当前线程执行，也可能由新线程来执行
     public void produce();
 
     /**
@@ -55,13 +57,18 @@ public interface ExecutionStrategy
      * {@link ExecutionStrategy} to be invoked again in case an external event resumes
      * the tasks production.</p>
      */
+    //Runnable任务的生产接口。
+    ////ExecutionStrategy将会不断调用#produce（）方法生成任务并执行，直到producer返回null（表示producer已经没有更多需要生产的东西了）
+    //当没有更多任务需要生产而返回时，ExecutionStrategy会在外部事件恢复时再次调用produce方法生产任务。
     public interface Producer
     {
         /**
+         * 任务生产方法
          * <p>Produces a task to be executed.</p>
          *
          * @return a task to executed or null if there are no more tasks to execute
          */
+        //生产一个Runnable(任务)
         Runnable produce();
     }
 }

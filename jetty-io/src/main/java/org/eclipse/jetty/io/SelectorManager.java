@@ -62,6 +62,7 @@ public abstract class SelectorManager extends ContainerLifeCycle implements Dump
 
     private final Executor executor;
     private final Scheduler scheduler;
+    //被管理的Selector
     private final ManagedSelector[] _selectors;
     private final AtomicInteger _selectorIndex = new AtomicInteger();
     private final IntUnaryOperator _selectorIndexUpdate;
@@ -195,7 +196,9 @@ public abstract class SelectorManager extends ContainerLifeCycle implements Dump
      */
     public void accept(SelectableChannel channel, Object attachment)
     {
+        //选择一个ManagedSelector来处理Channel（选择的方式是 轮询）
         ManagedSelector selector = chooseSelector();
+        //提交一个任务Accept到被选中的这个ManagedSelector
         selector.submit(selector.new Accept(channel, attachment));
     }
 

@@ -382,16 +382,21 @@ public class ServerConnector extends AbstractNetworkConnector
         ServerSocketChannel serverChannel = _acceptChannel;
         if (serverChannel != null && serverChannel.isOpen())
         {
+            // 这里是阻塞的
             SocketChannel channel = serverChannel.accept();
+            // 执行到这里时说明有请求进来了
             accepted(channel);
         }
     }
 
     private void accepted(SocketChannel channel) throws IOException
     {
+        //将 SocketChannel 设置为非阻塞模式
         channel.configureBlocking(false);
+        //设置一些socket属性，比如 tcpnodelay，发送和接收缓冲区
         Socket socket = channel.socket();
         configure(socket);
+        //然后交给 Selector 去处理
         _manager.accept(channel);
     }
 

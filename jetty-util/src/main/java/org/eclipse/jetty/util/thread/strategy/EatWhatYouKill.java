@@ -54,6 +54,18 @@ import org.slf4j.LoggerFactory;
  * the task and immediately continue production. When operating in this pattern, the
  * sub-strategy is called ProduceExecuteConsume (PEC).</p>
  */
+
+/**
+ 一种执行策略: 优先执行produce任务，当一个任务是produce任务的时候（如果有）不会出现没有线程饥饿。
+ 本策略抢占式调度挂起的生产者线程，以便任务生产线程能立即执行并且让任务生产线程接管生产。这种模式下的子策略
+ 被称为 Execute Produce Consume (EPC)。
+ 但是，如果生产的任务使用{@link Invocable} API来表示
+ 该任务不能被阻塞，那么本策略将直接运行这个任务，而不会去管此时是否还存在pending的生产者线程，
+ 在该任务完成以后再去处理pending的生产者线程，这种模式下的子策略被称为
+ ProduceConsume（PC）
+ 如果没有可用的挂起生产者线程，并且任务没有表示它是非阻塞的，那么此策略将分派任务执行，执行完成后立即继续生产。
+ 这种模式下的子策略称为ProduceExecuteConsume（PEC）。
+ */
 @ManagedObject("eat what you kill execution strategy")
 public class EatWhatYouKill extends ContainerLifeCycle implements ExecutionStrategy, Runnable
 {
@@ -241,20 +253,20 @@ public class EatWhatYouKill extends ContainerLifeCycle implements ExecutionStrat
                     // between EPC and PEC based on the availability of a reserved thread.
                     try (AutoLock l = _lock.lock())
                     {
-                        if (_pending)
+                        if (_pending)//如果空闲，则使用ExecuteProduceConsume
                         {
                             _state = State.IDLE;
                             mode = Mode.EXECUTE_PRODUCE_CONSUME;
                         }
-                        else if (_tryExecutor.tryExecute(this))
+                        else if (_tryExecutor.tryExecute(this)) //尝试直接提交任务到线程池，如果线程池可以直接执行，返回true（表示线程资源充足）
                         {
                             _pending = true;
                             _state = State.IDLE;
-                            mode = Mode.EXECUTE_PRODUCE_CONSUME;
+                            mode = Mode.EXECUTE_PRODUCE_CONSUME; //则使用ExecuteProduceConsume
                         }
                         else
                         {
-                            mode = Mode.PRODUCE_EXECUTE_CONSUME;
+                            mode = Mode.PRODUCE_EXECUTE_CONSUME;//则使用PRODUCE_EXECUTE_CONSUME
                         }
                     }
                     break;

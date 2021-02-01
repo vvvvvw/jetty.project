@@ -35,12 +35,15 @@ import org.slf4j.LoggerFactory;
  * each of capacity 1024, the second array element holds a queue of ByteBuffers each of capacity
  * 2048, and so on.</p>
  */
+//ByteBufferPool 的实现类
 @ManagedObject
 public class ArrayByteBufferPool extends AbstractByteBufferPool
 {
     private static final Logger LOG = LoggerFactory.getLogger(MappedByteBufferPool.class);
 
+    //最小size的Buffer长度
     private final int _minCapacity;
+    //用不同的Bucket来持有不同size的ByteBuffer对象,同一个Bucket中的ByteBuffer的size是一样的（数组长度=maxCapacity/factor）
     private final ByteBufferPool.Bucket[] _direct;
     private final ByteBufferPool.Bucket[] _indirect;
 
@@ -92,7 +95,7 @@ public class ArrayByteBufferPool extends AbstractByteBufferPool
         super(factor, maxQueueLength, maxHeapMemory, maxDirectMemory);
 
         factor = getCapacityFactor();
-        if (minCapacity <= 0)
+        if (minCapacity <= 0) //ByteBuffer的最小长度
             minCapacity = 0;
         if (maxCapacity <= 0)
             maxCapacity = 64 * 1024;
@@ -101,10 +104,12 @@ public class ArrayByteBufferPool extends AbstractByteBufferPool
         _minCapacity = minCapacity;
 
         int length = maxCapacity / factor;
+        //创建maxCapacity / factor个桶,包含直接内存的与heap的
         _direct = new ByteBufferPool.Bucket[length];
         _indirect = new ByteBufferPool.Bucket[length];
     }
 
+    //分配Buffer：找到对应的bucket，没有的话创建一个bucket，并调用bucket的方法分配一个ByteBuffer（从缓存的链表头部中获取，如果没有的话创建一个，在释放的时候会还到缓存链表中）
     @Override
     public ByteBuffer acquire(int size, boolean direct)
     {
@@ -112,6 +117,7 @@ public class ArrayByteBufferPool extends AbstractByteBufferPool
         ByteBufferPool.Bucket bucket = bucketFor(size, direct, null);
         if (bucket == null)
             return newByteBuffer(capacity, direct);
+        //这里其实调用了Deque的poll方法
         ByteBuffer buffer = bucket.acquire();
         if (buffer == null)
             return newByteBuffer(capacity, direct);
@@ -119,6 +125,7 @@ public class ArrayByteBufferPool extends AbstractByteBufferPool
         return buffer;
     }
 
+    //释放Buffer（释放到链表的头部）
     @Override
     public void release(ByteBuffer buffer)
     {
@@ -135,9 +142,11 @@ public class ArrayByteBufferPool extends AbstractByteBufferPool
         }
 
         boolean direct = buffer.isDirect();
+        //找到对应的桶
         ByteBufferPool.Bucket bucket = bucketFor(capacity, direct, this::newBucket);
         if (bucket != null)
         {
+            //这里调用了Deque的offerFirst方法
             bucket.release(buffer);
             incrementMemory(buffer);
             releaseExcessMemory(direct, this::clearOldestBucket);

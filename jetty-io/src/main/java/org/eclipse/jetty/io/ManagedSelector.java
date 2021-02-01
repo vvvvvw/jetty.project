@@ -81,13 +81,13 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
     }
 
     private final AutoLock _lock = new AutoLock();
-    private final AtomicBoolean _started = new AtomicBoolean(false);
-    private boolean _selecting;
-    private final SelectorManager _selectorManager;
-    private final int _id;
-    private final ExecutionStrategy _strategy;
-    private Selector _selector;
-    private Deque<SelectorUpdate> _updates = new ArrayDeque<>();
+    private final AtomicBoolean _started = new AtomicBoolean(false); ////原子变量，表明当前的ManagedSelector是否已经启动
+    private boolean _selecting;////表明是否阻塞在select调用上
+    private final SelectorManager _selectorManager;     //管理器的引用，SelectorManager管理若干ManagedSelector的生命周期
+    private final int _id; //ManagedSelector不止一个，为它们每人分配一个id
+    private final ExecutionStrategy _strategy; //关键的执行策略，生产者和消费者是否在同一个线程处理由它决定
+    private Selector _selector; //Java原生的Selector
+    private Deque<SelectorUpdate> _updates = new ArrayDeque<>(); //"Selector更新任务"队列
     private Deque<SelectorUpdate> _updateable = new ArrayDeque<>();
 
     public ManagedSelector(SelectorManager selectorManager, int id)
@@ -350,8 +350,10 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
 
     private void createEndPoint(SelectableChannel channel, SelectionKey selectionKey) throws IOException
     {
+        //1. 创建EndPoint
         EndPoint endPoint = _selectorManager.newEndPoint(channel, this, selectionKey);
         Object context = selectionKey.attachment();
+        //2. 创建Connection，并关联endpoint和channel
         Connection connection = _selectorManager.newConnection(channel, endPoint, context);
         endPoint.setConnection(connection);
         submit(selector ->
@@ -474,12 +476,14 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
          *
          * @return a job that may block or null
          */
+        //当某一个Channel的I/O事件就绪后，ManagedSelector会调用的回调函数
         Runnable onSelected();
 
         /**
          * Callback method invoked when all the keys selected by the
          * {@link ManagedSelector} for this endpoint have been processed.
          */
+        ////当所有事件处理完了之后ManagedSelector会调的回调函数
         void updateKey();
 
         /**
@@ -488,6 +492,7 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
          *
          * @param newKey the new SelectionKey
          */
+        //当 channel被移动到新的selector上的时候会replace SelectionKey，此时的回调方法
         void replaceKey(SelectionKey newKey);
     }
 
@@ -501,14 +506,17 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
         {
             while (true)
             {
+                // 如果Channel集合中有I/O事件就绪，调用Selectable接口获取Runnable,直接返回给ExecutionStrategy去处理
                 Runnable task = processSelected();
                 if (task != null)
                     return task;
 
+                ////如果没有I/O事件就绪，就干点杂活，看看有没有客户提交了更新Selector的任务，就是SelectorUpdate任务类
                 processUpdates();
 
                 updateKeys();
 
+                //继续执行select方法，侦测I/O就绪事件
                 if (!select())
                     return null;
             }
@@ -758,6 +766,7 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
         {
             try
             {
+                //注册SelectionKey.OP_ACCEPT事件
                 _key = _channel.register(selector, SelectionKey.OP_ACCEPT, this);
                 if (LOG.isDebugEnabled())
                     LOG.debug("{} acceptor={}", this, _channel);
@@ -837,6 +846,7 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
         {
             try
             {
+                //调用 Selector 的 register 方法把 Channel 注册到 Selector 上，拿到一个 SelectionKey。
                 key = channel.register(selector, 0, attachment);
                 execute(this);
             }
@@ -854,6 +864,7 @@ public class ManagedSelector extends ContainerLifeCycle implements Dumpable
         {
             try
             {
+                ////1. 创建EndPoint
                 createEndPoint(channel, key);
                 _selectorManager.onAccepted(channel);
             }

@@ -334,6 +334,7 @@ public class SocketChannelEndPoint extends AbstractEndPoint implements ManagedSe
         if (LOG.isDebugEnabled())
             LOG.debug("onSelected {}->{} r={} w={} for {}", oldInterestOps, newInterestOps, fillable, flushable, this);
 
+        //读事件到了就读，写事件到了就写
         // return task to complete the job
         Runnable task = fillable
             ? (flushable
